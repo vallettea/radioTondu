@@ -1,33 +1,57 @@
 var static = require('node-static');  
-var Primus = require('primus');  
-var http = require('http');  
+ 
 var FeedParser = require('feedparser');  
 var request = require('request');
+var kue = require('kue');
+var jobs = kue.createQueue();
 
-var file = new static.Server('./public');
 
-var server = http.createServer(function (request, response) {  
-  request.addListener('end', function () {
-    file.serve(request, response);
-  }).resume();
-}).listen(process.env.PORT || 8082);
+function play(podcast, done) {
+  console.log("Playing", podcast.title);
+  setTimeout(console.log("done"), 50000);
 
-var primus = new Primus(server, { parser: 'JSON' });  
-var onError = function (error) { console.error(error); };
+  done();
+}
 
-primus.on('connection', function connection(spark) {  
-  request('http://radiofrance-podcast.net/podcast09/rss_10078.xml')
-    .on('error', onError)
-    .pipe(new FeedParser())
-    .on('error', onError)
-    .on('readable', function() {
-      var stream = this, item;
-      while (item = stream.read()) {
-        spark.write(item);
-      }
-    });
+
+
+request('http://radiofrance-podcast.net/podcast09/rss_10078.xml')
+  .pipe(new FeedParser())
+  .on('readable', function() {
+    var stream = this, item;
+    while (item = stream.read()) {
+      // send the feed as job in the queue
+      var job = jobs.create('podcast', {
+          title: item.title,
+          file: item.guid,
+          description: item.description
+      });
+
+      job.on('complete', function(result){
+        console.log("Job completed with data ", result);
+      })
+
+      job.save( function(err){
+         if( !err ) console.log( job.id );
+      });
+
+
+      jobs.on('job complete', function(id,result){
+        kue.Job.get(id, function(err, job){
+          if (err) return;
+          job.remove(function(err){
+            if (err) throw err;
+            console.log('removed completed job #%d', job.id);
+          });
+        });
+      });
+
+
+    }
+  });
+
+jobs.process('podcast', function(job, done){
+  play(job.data, done);
 });
 
-primus.save(__dirname + '/public/js/primus.js');
-
-console.log(process.env.PORT || 8082);  
+kue.app.listen(3333);
