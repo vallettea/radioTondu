@@ -2,8 +2,10 @@ var static = require('node-static');
  
 var FeedParser = require('feedparser');  
 var request = require('request');
-var kue = require('kue');
-var jobs = kue.createQueue();
+var Datastore = require('nedb');
+var db = new Datastore({ filename: 'db.json', autoload: true });
+
+var podcasts = require("./podcasts.json");
 
 
 function play(podcast, done) {
@@ -14,44 +16,53 @@ function play(podcast, done) {
 }
 
 
+// update the database
+podcasts.forEach(function(podcast){
+  console.log("Updating: " + podcast.title);
 
-request('http://radiofrance-podcast.net/podcast09/rss_10078.xml')
-  .pipe(new FeedParser())
-  .on('readable', function() {
-    var stream = this, item;
-    while (item = stream.read()) {
-      // send the feed as job in the queue
-      var job = jobs.create('podcast', {
-          title: item.title,
-          file: item.guid,
-          description: item.description
-      });
-
-      job.on('complete', function(result){
-        console.log("Job completed with data ", result);
-      })
-
-      job.save( function(err){
-         if( !err ) console.log( job.id );
-      });
-
-
-      jobs.on('job complete', function(id,result){
-        kue.Job.get(id, function(err, job){
-          if (err) return;
-          job.remove(function(err){
-            if (err) throw err;
-            console.log('removed completed job #%d', job.id);
-          });
+  request(podcast.url)
+    .pipe(new FeedParser())
+    .on('readable', function() {
+      var stream = this, item;
+      while (item = stream.read()) {
+        var podcast = item;
+        // check if the entry exists in db
+        db.count({ file: item.guid }, function (err, count) {
+          if(count === 0){
+            // persists in db
+            db.insert({
+                title: podcast.title,
+                file: podcast.guid,
+                description: podcast.description,
+                broadcasted: false
+            });
+            console.log("Inserting doc: " + podcast.title);
+          };
         });
+      }
+    });
+
+})
+
+// take a random podcast among unread
+db.count({broadcasted: false}, function(err, nbUnBroacasted){
+
+  if (nbUnBroacasted > 0){
+    var rand = Math.floor(Math.random() * nbUnBroacasted );
+    db.find({broadcasted: false}).skip(rand).limit(1).exec(function (err, docs) {
+      var currentPodcast = docs[0];
+      console.log("Now playing " + currentPodcast.title)
+      // play podcast
+
+
+      // set podcast as broadcasted
+      db.update({ file:  currentPodcast.file}, { $set: { broadcasted: true } }, { multi: true }, function (err, numReplaced) {
+        console.log("nb updated " + numReplaced)
       });
+    });
+  };
+
+})
 
 
-    }
-  });
 
-jobs.process('podcast', function(job, done){
-  play(job.data, done);
-});
-
-kue.app.listen(3333);

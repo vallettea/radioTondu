@@ -10,10 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "feedparser": "^1.0.0",
-    "kue": "^0.8.11",
-    "node-static": "^0.7.6",
-    "primus": "^2.4.12",
-    "request": "^2.53.0",
-    "ws": "^0.7.1"
+    "nedb": "^1.1.1",
+    "request": "^2.53.0"
   }
 }
