@@ -1,0 +1,25 @@
+<html>  
+<script src="/js/primus.js"></script>  
+<script>  
+(function () {
+  var primus = new Primus();
+
+  primus.on('data', function incoming(data) {
+
+    var list = document.querySelectorAll('ul')[0];
+    var item = document.createElement('li');
+    var link = document.createElement('a');
+    link.title = data.title;
+    link.href = data.guid;
+    var linkText = document.createTextNode(data.title);
+    link.appendChild(linkText);
+    item.appendChild(link);
+
+    list.appendChild(item);
+  });
+
+})();
+</script>  
+<ul>  
+</ul>  
+</html> 
