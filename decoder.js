@@ -4,14 +4,11 @@ var lame = require('lame');
 var wav = require('wav');
 
 
-var  input = process.stdin;
-var  output = process.stdout;
-
 function onFormat (format) {
   console.error('MP3 format: %j', format);
 
   var writer = new wav.Writer(format);
-  decoder.pipe(writer).pipe(output);
+  decoder.pipe(writer);
 }
 
 var decoder = new lame.Decoder();

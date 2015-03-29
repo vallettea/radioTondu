@@ -6,6 +6,7 @@ var Datastore = require('nedb');
 var db = new Datastore({ filename: 'db.json', autoload: true });
 
 var podcasts = require("./podcasts.json");
+var downloader = require("./downloader.js");
 var decoder = require("./decoder.js");
 
 
@@ -54,6 +55,7 @@ db.count({broadcasted: false}, function(err, nbUnBroacasted){
     db.find({broadcasted: false}).skip(rand).limit(1).exec(function (err, docs) {
       var currentPodcast = docs[0];
       console.log("Now playing " + currentPodcast.title)
+      downloader(currentPodcast.file, "temp.mp3", function(){console.log("finished")})
       // play podcast
 
 
