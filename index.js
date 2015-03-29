@@ -1,4 +1,4 @@
-var static = require('node-static');  
+"use strict";
  
 var FeedParser = require('feedparser');  
 var request = require('request');
@@ -6,11 +6,13 @@ var Datastore = require('nedb');
 var db = new Datastore({ filename: 'db.json', autoload: true });
 
 var podcasts = require("./podcasts.json");
+var decoder = require("./decoder.js");
 
 
 function play(podcast, done) {
   console.log("Playing", podcast.title);
   setTimeout(console.log("done"), 50000);
+  // input.pipe(decoder);
 
   done();
 }

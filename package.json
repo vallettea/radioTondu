@@ -10,7 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "feedparser": "^1.0.0",
+    "lame": "^1.2.0",
     "nedb": "^1.1.1",
-    "request": "^2.53.0"
+    "request": "^2.53.0",
+    "wav": "^0.1.2"
   }
 }
