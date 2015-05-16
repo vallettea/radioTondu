@@ -9,9 +9,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "du": "^0.1.0",
     "feedparser": "^1.0.0",
     "lame": "^1.2.0",
     "nedb": "^1.1.1",
+    "node-schedule": "^0.2.6",
+    "nodefm-rpi": "0.0.4",
     "request": "^2.53.0",
     "wav": "^0.1.2"
   }

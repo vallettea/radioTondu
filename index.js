@@ -1,72 +1,69 @@
 "use strict";
  
-var FeedParser = require('feedparser');  
-var request = require('request');
+var radio = require('nodefm-rpi');
+
+var decoder = require("./src/decoder.js");
+var updatePodcastList = require("./src/updatePodcastList.js");
+var downloadRandomPodcast =  require("./src/downloadRandomPodcast.js");
+var schedule = require('node-schedule');
+var du = require('du');
+
 var Datastore = require('nedb');
-var db = new Datastore({ filename: 'db.json', autoload: true });
+var db = new Datastore({ filename: 'data/db.json', autoload: true });
 
-var podcasts = require("./podcasts.json");
-var downloader = require("./downloader.js");
-var decoder = require("./decoder.js");
+// maximum size of the data folder containing downloaded podcasts
+var MAX_SPACE = 1000000000; //1Gb
+var FREQUENCY = "88.7";
 
+// turn on the emitter
+var emitter = new radio(FREQUENCY);
+var i = emitter.start();
 
-function play(podcast, done) {
-  console.log("Playing", podcast.title);
-  setTimeout(console.log("done"), 50000);
-  // input.pipe(decoder);
+// initilize podcast list
+updatePodcastList(db).then(function(){
+   console.log("Finished initializing podcasts list.");
+})
 
-  done();
+// every minute check if there is some space left and if yes, download a podcast   
+schedule.scheduleJob('*/1 * * * *', function(){
+   console.log("Checking space on device");
+
+   du('./data', function (err, size) {
+      if (size < MAX_SPACE){
+         downloadRandomPodcast(db);
+      }
+   });
+});
+
+// check for availbale unread podcast and play it
+
+var readnext = function(){
+   db.find({broadcasted: false, downloaded: true}).exec(function (err, docs) {
+      var currentPodcast = docs[0];
+
+      fs.createReadStream(currentPodcast.path)
+         .pipe(decoder(emitter))
+         .on ("end", function(){
+            // set podcast as broadcasted
+            db.update({ file:  currentPodcast.file}, { $set: { broadcasted: true, downloaded: false, path: null } }, { multi: true }, function (err, numReplaced) {
+              console.log("nb updated " + numReplaced)
+            });
+            // remove file
+            fs.unlink(currentPodcast.path, function (err) {
+               if (err) console.log(err);
+               console.log('successfully deleted ', currentPodcast.path);
+            });
+            readnext();
+         });
+   })
 }
 
+readnext();
 
-// update the database
-podcasts.forEach(function(podcast){
-  console.log("Updating: " + podcast.title);
-
-  request(podcast.url)
-    .pipe(new FeedParser())
-    .on('readable', function() {
-      var stream = this, item;
-      while (item = stream.read()) {
-        var podcast = item;
-        // check if the entry exists in db
-        db.count({ file: item.guid }, function (err, count) {
-          if(count === 0){
-            // persists in db
-            db.insert({
-                title: podcast.title,
-                file: podcast.guid,
-                description: podcast.description,
-                broadcasted: false
-            });
-            console.log("Inserting doc: " + podcast.title);
-          };
-        });
-      }
-    });
-
-})
-
-// take a random podcast among unread
-db.count({broadcasted: false}, function(err, nbUnBroacasted){
-
-  if (nbUnBroacasted > 0){
-    var rand = Math.floor(Math.random() * nbUnBroacasted );
-    db.find({broadcasted: false}).skip(rand).limit(1).exec(function (err, docs) {
-      var currentPodcast = docs[0];
-      console.log("Now playing " + currentPodcast.title)
-      downloader(currentPodcast.file, "temp.mp3", function(){console.log("finished")})
-      // play podcast
-
-
-      // set podcast as broadcasted
-      db.update({ file:  currentPodcast.file}, { $set: { broadcasted: true } }, { multi: true }, function (err, numReplaced) {
-        console.log("nb updated " + numReplaced)
-      });
-    });
-  };
-
-})
-
-
+// update the podcast database every day at 2 am
+schedule.scheduleJob('00 02 * * *', function(){
+   updatePodcastList(db).then(function(){
+      console.log("Updated podcasts database.");
+   });
+});
 
