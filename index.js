@@ -7,6 +7,7 @@ var updatePodcastList = require("./src/updatePodcastList.js");
 var downloadRandomPodcast =  require("./src/downloadRandomPodcast.js");
 var schedule = require('node-schedule');
 var du = require('du');
+var fs = require("fs");
 
 var Datastore = require('nedb');
 var db = new Datastore({ filename: 'data/db.json', autoload: true });
@@ -20,9 +21,14 @@ var emitter = new radio(FREQUENCY);
 var i = emitter.start();
 
 // initilize podcast list
-updatePodcastList(db).then(function(){
-   console.log("Finished initializing podcasts list.");
-})
+db.count({}, function (err, count) {
+   if (count === 0){
+      updatePodcastList(db).then(function(){
+         console.log("Finished initializing podcasts list.");
+      })
+   }
+});
+
 
 // every minute check if there is some space left and if yes, download a podcast   
 schedule.scheduleJob('*/1 * * * *', function(){
@@ -39,22 +45,27 @@ schedule.scheduleJob('*/1 * * * *', function(){
 
 var readnext = function(){
    db.find({broadcasted: false, downloaded: true}).exec(function (err, docs) {
-      var currentPodcast = docs[0];
+      if (docs.length > 0){
+         var currentPodcast = docs[0];
 
-      fs.createReadStream(currentPodcast.path)
-         .pipe(decoder(emitter))
-         .on ("end", function(){
-            // set podcast as broadcasted
-            db.update({ file:  currentPodcast.file}, { $set: { broadcasted: true, downloaded: false, path: null } }, { multi: true }, function (err, numReplaced) {
-              console.log("nb updated " + numReplaced)
+         fs.createReadStream(currentPodcast.path)
+            .pipe(decoder(emitter))
+            .on ("end", function(){
+               // set podcast as broadcasted
+               db.update({ file:  currentPodcast.file}, { $set: { broadcasted: true, downloaded: false, path: null } }, { multi: true }, function (err, numReplaced) {
+                 console.log("nb updated " + numReplaced)
+               });
+               // remove file
+               fs.unlink(currentPodcast.path, function (err) {
+                  if (err) console.log(err);
+                  console.log('successfully deleted ', currentPodcast.path);
+               });
+               readnext();
             });
-            // remove file
-            fs.unlink(currentPodcast.path, function (err) {
-               if (err) console.log(err);
-               console.log('successfully deleted ', currentPodcast.path);
-            });
-            readnext();
-         });
+      } else {
+         console.log("No podcast downloaded yet, please wait");
+         setTimeout(function(){ readnext() }, 10000);
+      }
    })
 }
 
