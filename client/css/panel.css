@@ -1,0 +1,37 @@
+#panel {
+	position: fixed; bottom: -45vh; right: 0; left: 0;
+
+	background-color: white; opacity: 0.7;
+	height: 50vh;
+    
+    z-index: 10;
+    transition: bottom .5s ease-in-out;
+}
+
+#panel.open {
+	bottom: 0;
+	transition: bottom .5s ease-in-out;
+
+	overflow-x: scroll;
+}
+
+#close-button {
+	display: block; position: absolute; top: 5px; right: 5px; width: 14px; height: 14px;
+	border-radius: 50%;
+	background-color: green;
+	cursor: pointer;
+}	
+
+#panel.open #close-button{
+	background-color: red;
+}
+
+#panel h1 {
+	width: 100%; margin: 0;
+	font-size: 1.3em; text-align: center;
+}
+
+#panel h2 {
+	display: inline-block; margin: .4em 1em;
+	font-size: 1em;
+}
