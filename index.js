@@ -1,34 +1,29 @@
 "use strict";
- 
-var radio = require('nodefm-rpi');
 
-var decoder = require("./src/decoder.js");
-var updatePodcastList = require("./src/updatePodcastList.js");
-var downloadRandomPodcast =  require("./src/downloadRandomPodcast.js");
-var schedule = require('node-schedule');
 var du = require('du');
 var fs = require("fs");
-
-var Datastore = require('nedb');
-var db = new Datastore({ filename: 'data/db.json', autoload: true });
-
 var path = require('path');
 var express = require('express');
 var http = require('http');
-var app = express();
-var server = http.Server(app);
-var io = require('socket.io')(server);
-io.set('origins', '*:*');
+var Datastore = require('nedb');
+var updatePodcastList = require("./src/updatePodcastList.js");
+
+var radio = require('nodefm-rpi');
+var decoder = require("./src/decoder.js");
+var scheduler = require("./src/scheduler.js");
+
 
 // maximum size of the data folder containing downloaded podcasts
 var MAX_SPACE = 1000000000; //1Gb
-var FREQUENCY = "88.7";
+var FREQUENCY = "88.3";
 
 // turn on the emitter
 var emitter = new radio(FREQUENCY);
 var radioStream = emitter.start();
+var fmStream = decoder(radioStream);
 
 // initilize podcast list
+var db = new Datastore({ filename: 'data/db.json', autoload: true });
 db.count({}, function (err, count) {
    if (count === 0){
       updatePodcastList(db).then(function(){
@@ -36,18 +31,9 @@ db.count({}, function (err, count) {
       })
    }
 });
+// scheduler(db);
 
-
-// // every minute check if there is some space left and if yes, download a podcast   
-// schedule.scheduleJob('*/1 * * * *', function(){
-//    console.log("Checking space on device");
-
-//    du('./data', function (err, size) {
-//       if (size < MAX_SPACE){
-//          downloadRandomPodcast(db);
-//       }
-//    });
-// });
+var castStream;
 
 // check for availbale unread podcast and play it
 var readnext = function(){
@@ -55,9 +41,9 @@ var readnext = function(){
       if (docs.length > 0){
          var currentPodcast = docs[0];
          console.log("opening ", currentPodcast.path)
-         var stream = fs.createReadStream(currentPodcast.path);
-         stream
-            .pipe(decoder(radioStream))
+         castStream = fs.createReadStream(currentPodcast.path);
+         castStream
+            .pipe(fmStream)
             .on ("end", function(){
                // set podcast as broadcasted
                db.update({ file:  currentPodcast.file}, { $set: { broadcasted: true, downloaded: false, path: null } }, { multi: true }, function (err, numReplaced) {
@@ -70,21 +56,21 @@ var readnext = function(){
                });
                readnext();
             });
-         return stream;
       } else {
          console.log("No podcast downloaded yet, please wait");
          setTimeout(function(){ readnext() }, 10000);
       }
    })
 }
-var stream = readnext();
+readnext();
 
-// update the podcast database every day at 2 am
-schedule.scheduleJob('00 02 * * *', function(){
-   updatePodcastList(db).then(function(){
-      console.log("Updated podcasts database.");
-   });
-});
+
+// API
+
+var app = express();
+var server = http.Server(app);
+var io = require('socket.io')(server);
+io.set('origins', '*:*');
 
 app.use("/font-awesome/css/font-awesome.min.css", express.static(path.join(__dirname, 'client/font-awesome/css/font-awesome.min.css')));
 app.use("/css", express.static(path.join(__dirname, 'client/css')));
@@ -106,12 +92,19 @@ io.on('connection', function(socket) {
    });
 
    socket.on('broadcasting', function (broadcasting) {
+      console.log('received broadcasting')
       if(broadcasting === false){
-         stream.pause();
-         emitter.stop();
+         
+         fmStream.stop();
+         setTimeout(function(){ // dirty but one has to be sure nothing is piping in piFM rds or there is an error
+            castStream.unpipe(fmStream);
+            emitter.stop();
+         }, 1000)
+         
       } else {
          radioStream = emitter.start();
-         stream = readnext();
+         fmStream = decoder(radioStream);
+         readnext();
       }
    });
 

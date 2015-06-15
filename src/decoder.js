@@ -8,15 +8,22 @@ var decode = function(output){
   var decoder = new lame.Decoder({
 		outSampleRate: 44100
 	});
+  var writer;
+  var dd;
 
   function onFormat (format) {
     console.log('MP3 format: %j', format);
 
-    var writer = new wav.Writer(format);
-    decoder.pipe(writer).pipe(output);
+    writer = new wav.Writer(format);
+    dd = decoder.pipe(writer)
+    dd.pipe(output);
   }
   
   decoder.on('format', onFormat);
+  decoder.stop = function(){
+    dd.unpipe(output);
+    decoder.unpipe(writer);
+  };
   return decoder;
 }
 

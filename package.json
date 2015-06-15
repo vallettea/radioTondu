@@ -32,7 +32,7 @@
     "lame": "^1.2.0",
     "nedb": "^1.1.1",
     "node-schedule": "^0.2.6",
-    "nodefm-rpi": "0.0.4",
+    "nodefm-rpi": "0.0.6",
     "react": "^0.12.1",
     "react-classset": "git://github.com/oncletom/react-classset",
     "reactify": "^0.17.1",
