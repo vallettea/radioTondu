@@ -1,11 +1,12 @@
 "use strict";
 
+var du = require('du');
 var schedule = require('node-schedule');
 var updatePodcastList = require("./updatePodcastList.js");
 var downloadRandomPodcast =  require("./downloadRandomPodcast.js");
 
 
-module.exports = function(db) {
+module.exports = function(db, MAX_SPACE) {
 
 	// every minute check if there is some space left and if yes, download a podcast   
 	schedule.scheduleJob('*/1 * * * *', function(){

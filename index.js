@@ -1,6 +1,5 @@
 "use strict";
 
-var du = require('du');
 var fs = require("fs");
 var path = require('path');
 var express = require('express');
@@ -31,7 +30,7 @@ db.count({}, function (err, count) {
       })
    }
 });
-// scheduler(db);
+scheduler(db, MAX_SPACE);
 
 var castStream;
 
